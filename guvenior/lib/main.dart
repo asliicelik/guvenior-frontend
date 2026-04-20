@@ -4,6 +4,7 @@ import 'core/services/api_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/onboarding_screen.dart';
+import 'features/dashboard/screens/dashboard_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -23,7 +24,7 @@ class GuveniorApp extends StatelessWidget {
       title: 'Güvenior',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const LoginScreen(),
+      home: ApiService.hasToken ? const DashboardScreen() : const LoginScreen(),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('tr'), Locale('en')],
     );

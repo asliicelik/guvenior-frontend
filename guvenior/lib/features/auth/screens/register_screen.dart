@@ -141,6 +141,8 @@ class _RegisterScreenState extends State<RegisterScreen>
           monthlyIncome: _monthlyIncomeController.numberValue,
           salaryDay: int.tryParse(_salaryDayController.text.trim()) ?? 1,
         ),
+        monthlyIncome: _monthlyIncomeController.numberValue,
+        salaryDay: int.tryParse(_salaryDayController.text.trim()) ?? 1,
       );
       if (mounted) {
         Navigator.pushReplacement(

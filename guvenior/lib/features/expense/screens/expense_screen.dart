@@ -4,8 +4,12 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../core/utils/currency_format.dart';
+import '../../../core/services/local_data_service.dart';
 import '../models/expense_model.dart';
+import '../models/recurring_expense_model.dart';
 import '../services/expense_service.dart';
+import '../services/recurring_expense_service.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -23,6 +27,12 @@ class _ExpenseScreenState extends State<ExpenseScreen>
   final _amountController = TextEditingController();
   int _selectedCategory = 1;
   DateTime _selectedDate = DateTime.now();
+
+  // Tekrarlayan gider durumu (sheet içinde kullanılır)
+  bool _isRecurring = false;
+  int _recurringDay = 1;
+
+  // Tüm kategoriler tekrarlayan olabilir
 
   late AnimationController _bgController;
 
@@ -102,17 +112,32 @@ class _ExpenseScreenState extends State<ExpenseScreen>
 
   Future<void> _addExpense() async {
     if (_titleController.text.isEmpty || _amountController.text.isEmpty) return;
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null) return;
     try {
       await ExpenseService.addExpense(
         CreateExpenseRequest(
           title: _titleController.text.trim(),
-          amount: double.parse(_amountController.text.trim()),
+          amount: amount,
           spentAt: _selectedDate,
           category: _selectedCategory,
         ),
       );
+      // Tekrarlayan gider olarak da kaydet
+      if (_isRecurring) {
+        await RecurringExpenseService.addRecurringExpense(
+          CreateRecurringExpenseRequest(
+            title: _titleController.text.trim(),
+            amount: amount,
+            category: _selectedCategory,
+            dayOfMonth: _recurringDay,
+          )
+        );
+      }
       _titleController.clear();
       _amountController.clear();
+      _isRecurring = false;
+      _recurringDay = 1;
       Navigator.pop(context);
       _loadExpenses();
     } catch (e) {
@@ -131,142 +156,323 @@ class _ExpenseScreenState extends State<ExpenseScreen>
     }
   }
 
+  Future<void> _deleteExpense(String id) async {
+    try {
+      await ExpenseService.deleteExpense(id);
+      _loadExpenses();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Harcama silinemedi.'),
+            backgroundColor: AppColors.moodStressed,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _promptDeleteExpense(Expense expense) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF161B22),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppColors.moodStressed.withOpacity(0.4)),
+        ),
+        title: const Text('Harcamayı Sil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('"${expense.title}" harcamasını silmek istediğinize emin misiniz?',
+            style: TextStyle(color: Colors.white.withOpacity(0.7), height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Vazgeç', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil', style: TextStyle(color: AppColors.moodStressed, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _deleteExpense(expense.id);
+    }
+  }
+
   void _showAddExpenseSheet() {
+    _isRecurring = false;
+    _recurringDay = DateTime.now().day;
+    _selectedCategory = 1;
+    _selectedDate = DateTime.now();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF111827),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 24,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModal) => SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.sky, AppColors.sky.withOpacity(0.6)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
+                    color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Harcama Ekle',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildField(
-              controller: _titleController,
-              label: 'Başlık',
-              icon: Icons.title,
-            ),
-            const SizedBox(height: 14),
-            _buildField(
-              controller: _amountController,
-              label: 'Tutar (₺)',
-              icon: Icons.payments_outlined,
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<int>(
-              value: _selectedCategory,
-              dropdownColor: const Color(0xFF1A2333),
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Kategori', Icons.category_outlined),
-              items: _categories.entries
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Row(
-                        children: [
-                          Icon(
-                            _categoryIcons[e.key],
-                            size: 16,
-                            color: _categoryColors[e.key],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(e.value),
-                        ],
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 4, height: 24,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.sky, AppColors.sky.withOpacity(0.6)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  )
-                  .toList(),
-              onChanged: (val) => setState(() => _selectedCategory = val!),
-            ),
-            const SizedBox(height: 14),
-            GestureDetector(
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _selectedDate,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  builder: (context, child) => Theme(
-                    data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(
-                        primary: AppColors.sky,
-                      ),
-                    ),
-                    child: child!,
                   ),
-                );
-                if (picked != null) setState(() => _selectedDate = picked);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      color: Colors.white38,
-                      size: 18,
+                  const SizedBox(width: 12),
+                  Text(
+                    'Harcama Ekle',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildField(
+                controller: _titleController,
+                label: 'Başlık',
+                icon: Icons.title,
+              ),
+              const SizedBox(height: 14),
+              _buildField(
+                controller: _amountController,
+                label: 'Tutar (₺)',
+                icon: Icons.payments_outlined,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<int>(
+                value: _selectedCategory,
+                dropdownColor: const Color(0xFF1A2333),
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDecoration('Kategori', Icons.category_outlined),
+                items: _categories.entries
+                    .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Row(children: [
+                            Icon(_categoryIcons[e.key], size: 16,
+                                color: _categoryColors[e.key]),
+                            const SizedBox(width: 8),
+                            Text(e.value),
+                          ]),
+                        ))
+                    .toList(),
+                onChanged: (val) {
+                  setModal(() {
+                    _selectedCategory = val!;
+                  });
+                },
+              ),
+              const SizedBox(height: 14),
+              // Tarih seçici
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    builder: (context, child) => Theme(
+                      data: ThemeData.dark().copyWith(
+                        colorScheme: const ColorScheme.dark(
+                          primary: AppColors.sky,
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) setModal(() => _selectedDate = picked);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.calendar_today_outlined,
+                        color: Colors.white38, size: 18),
                     const SizedBox(width: 12),
                     Text(
                       DateFormat('dd MMMM yyyy', 'tr').format(_selectedDate),
                       style: const TextStyle(color: Colors.white, fontSize: 15),
                     ),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isRecurring
+                      ? const Color(0xFFA29BFE).withOpacity(0.12)
+                      : Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _isRecurring
+                        ? const Color(0xFFA29BFE).withOpacity(0.4)
+                        : Colors.white.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.repeat_rounded,
+                            color: Color(0xFFA29BFE), size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tekrarlayan Gider mi?',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Her ay otomatik takvime eklensin',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _isRecurring,
+                          onChanged: (v) =>
+                              setModal(() => _isRecurring = v),
+                          activeColor: const Color(0xFFA29BFE),
+                          inactiveTrackColor:
+                              Colors.white.withOpacity(0.1),
+                        ),
+                      ],
+                    ),
+                    // Her ayın kaçında?
+                    if (_isRecurring) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_repeat_rounded,
+                                color: Color(0xFFA29BFE), size: 16),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Her ayın $_recurringDay. günü',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13),
+                            ),
+                            const Spacer(),
+                            Row(children: [
+                              GestureDetector(
+                                onTap: () => setModal(() {
+                                  if (_recurringDay > 1) _recurringDay--;
+                                }),
+                                child: Container(
+                                  width: 30, height: 30,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.remove,
+                                      color: Colors.white54, size: 16),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12),
+                                child: Text('$_recurringDay',
+                                  style: const TextStyle(
+                                    color: Color(0xFFA29BFE),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  )),
+                              ),
+                              GestureDetector(
+                                onTap: () => setModal(() {
+                                  if (_recurringDay < 31) _recurringDay++;
+                                }),
+                                child: Container(
+                                  width: 30, height: 30,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.add,
+                                      color: Colors.white54, size: 16),
+                                ),
+                              ),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            GradientButton(
-              text: 'Harcamayı Ekle',
-              onPressed: _addExpense,
-              gradient: LinearGradient(
-                colors: [AppColors.sky, AppColors.sky.withOpacity(0.7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              const SizedBox(height: 24),
+              GradientButton(
+                text: 'Harcamayı Ekle',
+                onPressed: _addExpense,
+                gradient: LinearGradient(
+                  colors: [AppColors.sky, AppColors.sky.withOpacity(0.7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -424,7 +630,7 @@ class _ExpenseScreenState extends State<ExpenseScreen>
                             ),
                           ),
                           child: Text(
-                            '₺${_expenses.fold(0.0, (s, e) => s + e.amount).toStringAsFixed(0)}',
+                            CurrencyFormatter.format(_expenses.fold(0.0, (s, e) => s + e.amount)),
                             style: TextStyle(
                               color: AppColors.sky,
                               fontSize: 13,
@@ -473,65 +679,134 @@ class _ExpenseScreenState extends State<ExpenseScreen>
                                   Colors.white54;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: GlassCard(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: color.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: color.withOpacity(0.3),
+                                child: Dismissible(
+                                  key: Key(expense.id),
+                                  direction: DismissDirection.endToStart,
+                                  background: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.only(right: 20),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.moodStressed.withOpacity(0.85),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                                        SizedBox(height: 4),
+                                        Text('Sil', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                  confirmDismiss: (_) async {
+                                    return await showDialog<bool>(
+                                      context: context,
+                                      builder: (_) => AlertDialog(
+                                        backgroundColor: const Color(0xFF161B22),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(20),
+                                          side: BorderSide(
+                                            color: AppColors.moodStressed.withOpacity(0.4),
                                           ),
                                         ),
-                                        child: Icon(
-                                          _categoryIcons[expense.category] ??
-                                              Icons.more_horiz,
-                                          color: color,
-                                          size: 20,
+                                        title: const Text(
+                                          'Harcamayı Sil',
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                         ),
+                                        content: Text(
+                                          '"${expense.title}" harcamasını silmek istediğinize emin misiniz?',
+                                          style: TextStyle(color: Colors.white.withOpacity(0.7), height: 1.5),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, false),
+                                            child: Text('Vazgeç', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, true),
+                                            child: const Text('Sil', style: TextStyle(color: AppColors.moodStressed, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              expense.title,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
+                                    ) ?? false;
+                                  },
+                                  onDismissed: (_) => _deleteExpense(expense.id),
+                                  child: GlassCard(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '${_categories[expense.category] ?? 'Diğer'} • ${DateFormat('dd MMM yyyy', 'tr').format(expense.spentAt)}',
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  0.45,
+                                            border: Border.all(
+                                              color: color.withOpacity(0.3),
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            _categoryIcons[expense.category] ??
+                                                Icons.more_horiz,
+                                            color: color,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                expense.title,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 15,
                                                 ),
-                                                fontSize: 12,
                                               ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${_categories[expense.category] ?? 'Diğer'} • ${DateFormat('dd MMM yyyy', 'tr').format(expense.spentAt)}',
+                                                style: TextStyle(
+                                                  color: Colors.white.withOpacity(
+                                                    0.45,
+                                                  ),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          '-${CurrencyFormatter.format(expense.amount)}',
+                                          style: TextStyle(
+                                            color: color,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        GestureDetector(
+                                          onTap: () => _promptDeleteExpense(expense),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.moodStressed.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
-                                          ],
+                                            child: const Icon(
+                                              Icons.delete_outline,
+                                              color: AppColors.moodStressed,
+                                              size: 18,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        '-₺${expense.amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
-                                        style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );

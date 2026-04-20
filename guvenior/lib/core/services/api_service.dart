@@ -26,4 +26,6 @@ class ApiService {
   }
 
   static Dio get dio => _dio;
+
+  static bool get hasToken => _dio.options.headers.containsKey('Authorization');
 }

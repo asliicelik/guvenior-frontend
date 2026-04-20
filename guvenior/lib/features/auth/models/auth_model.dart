@@ -35,16 +35,22 @@ class AuthResponse {
   final String token;
   final String fullName;
   final String email;
+  final double monthlyIncome;
+  final int salaryDay;
 
   AuthResponse({
     required this.token,
     required this.fullName,
     required this.email,
+    required this.monthlyIncome,
+    required this.salaryDay,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
-    token: json['token'],
-    fullName: json['fullName'],
-    email: json['email'],
+    token: json['token'] ?? '',
+    fullName: (json['fullName'] ?? json['FullName'] ?? '') as String,
+    email: (json['email'] ?? json['Email'] ?? '') as String,
+    monthlyIncome: (json['monthlyIncome'] ?? json['MonthlyIncome'] as num?)?.toDouble() ?? 0.0,
+    salaryDay: (json['salaryDay'] ?? json['SalaryDay'] as num?)?.toInt() ?? 1,
   );
 }

@@ -196,11 +196,11 @@ class _LoginScreenState extends State<LoginScreen>
                           AnimatedBuilder(
                             animation: _bgController,
                             builder: (context, child) => Container(
-                              width: 90,
-                              height: 90,
+                              width: 110,
+                              height: 110,
                               decoration: BoxDecoration(
                                 gradient: AppColors.peachSkyGradient,
-                                borderRadius: BorderRadius.circular(28),
+                                borderRadius: BorderRadius.circular(32),
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.peach.withOpacity(
@@ -212,9 +212,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 ],
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(12),
                                 child: Image.asset(
-                                  "lib/assets/images/guveniorlogo.png",
+                                  "lib/assets/images/guveniorlogoson.png",
                                   fit: BoxFit.contain,
                                 ),
                               ),
@@ -302,7 +302,114 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {
+                                  final emailCtrl = TextEditingController(
+                                    text: _emailController.text.trim(),
+                                  );
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: const Color(0xFF161B22),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(
+                                          color: AppColors.peach.withOpacity(0.3),
+                                        ),
+                                      ),
+                                      title: const Text(
+                                        'Şifremi Unuttum',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Kayıtlı e-posta adresinize şifre sıfırlama bağlantısı gönderilecektir.',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.7),
+                                              height: 1.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          TextField(
+                                            controller: emailCtrl,
+                                            keyboardType: TextInputType.emailAddress,
+                                            style: const TextStyle(color: Colors.white),
+                                            decoration: InputDecoration(
+                                              labelText: 'E-posta',
+                                              labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                              prefixIcon: const Icon(Icons.email_outlined, color: Colors.white38, size: 18),
+                                              filled: true,
+                                              fillColor: Colors.white.withOpacity(0.07),
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(color: AppColors.peach, width: 1.5),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: Text('İptal',
+                                            style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                                        ),
+                                        TextButton(
+                                          onPressed: () async {
+                                            final email = emailCtrl.text.trim();
+                                            if (email.isEmpty) return;
+                                            Navigator.pop(ctx);
+                                            final ok = await AuthService.forgotPassword(email);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(ok
+                                                    ? 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.'
+                                                    : 'İstek gönderilemedi. E-posta adresinizi kontrol edin.'),
+                                                  backgroundColor: ok ? const Color(0xFF00E5A0) : AppColors.moodStressed,
+                                                  behavior: SnackBarBehavior.floating,
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          child: const Text('Gönder',
+                                            style: TextStyle(color: AppColors.peach, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  'Şifremi Unuttum?',
+                                  style: TextStyle(
+                                    color: AppColors.softPeach.withOpacity(0.8),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
                             GradientButton(
                               text: 'Giriş Yap',
                               onPressed: _login,

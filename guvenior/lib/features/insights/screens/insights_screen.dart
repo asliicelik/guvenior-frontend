@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../expense/services/expense_service.dart';
 import '../../expense/models/expense_model.dart';
 
@@ -277,12 +278,21 @@ class _InsightsScreenState extends State<InsightsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'IMPULSE REZİLYANS SKORU',
+              'DÜRTÜSEL HARCAMA DİRENCİN',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Gece ve anlık harcamalarına karşı ne kadar direnç gösterdiğini ölçer',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.55),
+                fontSize: 11,
+                height: 1.4,
               ),
             ),
             const SizedBox(height: 8),
@@ -317,10 +327,10 @@ class _InsightsScreenState extends State<InsightsScreen>
             ),
             Text(
               _impulseScore >= 70
-                  ? 'Dürtüsel harcamalara karşı güçlü duruyorsun! 💪'
+                  ? 'Dürtüsel (anlık) harcamalara karşı güçlü duruyorsun! Gece alışverişi yapmıyorsun, aferin! 💪'
                   : _impulseScore >= 40
-                  ? 'Gece harcamalarına biraz dikkat et.'
-                  : 'Gece alışverişlerin bütçeni etkiliyor.',
+                  ? 'Gece ya da ani harcamalarına biraz dikkat et. Küçük adımlarla büyük tasarruf yapabilirsin.'
+                  : 'Gece ve ani alışverişlerin bütçeni ciddi etkiliyor. Harcamadan önce bir gece bekle!',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.85),
                 fontSize: 13,
@@ -505,7 +515,7 @@ class _InsightsScreenState extends State<InsightsScreen>
                           ],
                         ),
                         Text(
-                          '%${(ratio * 100).toInt()} • ₺${entry.value.toStringAsFixed(0)}',
+                          '%${(ratio * 100).toInt()} • ${CurrencyFormatter.format(entry.value)}',
                           style: TextStyle(
                             color: color,
                             fontSize: 12,

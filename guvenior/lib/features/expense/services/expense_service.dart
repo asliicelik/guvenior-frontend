@@ -11,4 +11,8 @@ class ExpenseService {
   static Future<void> addExpense(CreateExpenseRequest request) async {
     await ApiService.dio.post(ApiConstants.expense, data: request.toJson());
   }
+
+  static Future<void> deleteExpense(String id) async {
+    await ApiService.dio.delete('${ApiConstants.expense}/$id');
+  }
 }
